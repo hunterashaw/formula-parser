@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Expression Parser/Evaluator</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        colors: {
+                            stone: {
+                                50: '#f4f3f1',
+                                100: '#e7e5e0',
+                                200: '#d2cec4',
+                                300: '#b6b1a0',
+                                400: '#9b9580',
+                                500: '#817b65',
+                                600: '#635f4d',
+                                700: '#4e4b3d',
+                                800: '#403e34',
+                                900: '#38372f',
+                                950: '#1d1c16'
+                            }
+                        }
+                    }
+                }
+            }
+        </script>
+        <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+        <link
+            rel="stylesheet"
+            data-name="vs/editor/editor.main"
+            href="../node_modules/monaco-editor/min/vs/editor/editor.main.css"
+        />
+    </head>
+    <body class="flex flex-col p-20 gap-8 bg-stone-900 text-stone-200">
+        <div class="grid lg:grid-cols-2 gap-8">
+            <div class="flex flex-col gap-8 mr-8">
+                <h1 class="text-2xl font-bold">Evaluation Context</h1>
+                <div id="context" style="width: 600px; height: 500px"></div>
+            </div>
+
+            <div class="flex flex-col gap-8">
+                <h1 class="text-2xl font-bold">Expression</h1>
+                <div id="expression" style="width: 600px; height: 500px"></div>
+            </div>
+        </div>
+
+        <h1 class="text-2xl font-bold">Result</h1>
+        <pre class="font-mono" id="result"></pre>
+
+        <script>
+            var require = {
+                paths: { vs: '../node_modules/monaco-editor/min/vs' }
+            }
+        </script>
+        <script src="../node_modules/monaco-editor/min/vs/loader.js"></script>
+        <script src="../node_modules/monaco-editor/min/vs/editor/editor.main.nls.js"></script>
+        <script src="../node_modules/monaco-editor/min/vs/editor/editor.main.js"></script>
+
+        <script type="module">
+            import parse from './src/index.js'
+
+            const result = document.getElementById('result')
+
+            const context = monaco.editor.create(
+                document.getElementById('context'),
+                {
+                    value: `return {
+    context: {
+        a: 10, b: 15, c: "text"
+    },
+    functions: {
+        now: () => Date.now()
+    }
+}`,
+                    language: 'javascript',
+                    theme: 'vs-dark',
+                    minimap: {
+                        enabled: false
+                    }
+                }
+            )
+
+            monaco.languages.register({ id: 'formula-expression' })
+            monaco.languages.setMonarchTokensProvider('formula-expression', {
+                keywords: ['true', 'false'],
+                operators: [
+                    ':',
+                    ',',
+                    '+',
+                    '-',
+                    '*',
+                    '/',
+                    '%',
+                    '=',
+                    '<',
+                    '<=',
+                    '>',
+                    '>=',
+                    '&',
+                    '|'
+                ],
+                tokenizer: {
+                    root: [
+                        [
+                            /@?[a-zA-Z][\w$]*/,
+                            {
+                                cases: {
+                                    '@keywords': 'keyword',
+                                    '@default': 'variable'
+                                }
+                            }
+                        ],
+                        [/\d+/, 'number'],
+                        [/".*?"/, 'string']
+                    ]
+                }
+            })
+
+            const expression = monaco.editor.create(
+                document.getElementById('expression'),
+                {
+                    value: `a + ( b + now() ) + " hello world"`,
+                    language: 'formula-expression',
+                    theme: 'vs-dark',
+                    minimap: {
+                        enabled: false
+                    }
+                }
+            )
+
+            let context_data
+            const run = () => {
+                try {
+                    const expression_text = expression.getValue()
+                    context_data = new Function(context.getValue())()
+                    const parsed = parse(expression_text)
+
+                    result.innerText = JSON.stringify(
+                        parsed.evaluate(
+                            context_data.context,
+                            context_data.functions
+                        ),
+                        null,
+                        2
+                    )
+                } catch (e) {
+                    result.innerText = e.message
+                }
+            }
+
+            run()
+            let timer
+            expression.getModel().onDidChangeContent(() => {
+                clearTimeout(timer)
+                timer = setTimeout(() => run(), 250)
+            })
+            context.getModel().onDidChangeContent(() => {
+                clearTimeout(timer)
+                timer = setTimeout(() => run(), 250)
+            })
+        </script>
+    </body>
+</html>
